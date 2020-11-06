@@ -1,0 +1,254 @@
+#%%
+
+#import libraries
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing import image
+import matplotlib.pyplot as plt
+%matplotlib inline
+import numpy as np
+import pandas as pd
+import cv2
+
+#%%
+
+#load sample image to see how it looks, below is an RGB (red green blue) image
+img=image.load_img("seg_train/buildings/4.jpg")
+plt.imshow(img)
+plt.matshow(img)
+
+#%%
+
+#see the three dimensional matrix of an image
+cv2.imread("seg_train/buildings/4.jpg")
+
+#%%
+
+#see shape how it is 3 dimensional, 150 pixels length, 150 pixels width, 3 RGB
+cv2.imread("seg_train/buildings/4.jpg").shape #3 dimensional
+
+#%%
+
+#rescale, the values of RGB ranges from 0 to 255, we should make the values to 0 t0 1, to make the model work more effictively
+rescale=ImageDataGenerator(rescale=1/255)
+
+#%%
+
+#define train and test data
+train=rescale.flow_from_directory("seg_train",
+                                 target_size=(150,150),
+                                  batch_size=200,
+                                  class_mode='categorical')
+test=rescale.flow_from_directory("seg_test",
+                                 target_size=(150,150),
+                                  batch_size=200,
+                                  class_mode='categorical')
+
+#%%
+
+train.class_indices
+
+#%%
+
+train.classes[:2192] #to see which class each image belong
+
+#%%
+
+#define model
+model=tf.keras.models.Sequential([
+    #1
+    tf.keras.layers.Conv2D(16, (3,3), activation="relu", input_shape=(150,150,3)), # Convolutional Layer
+    tf.keras.layers.MaxPool2D(2,2),                                                # Maxpooling Layer
+    #2
+    tf.keras.layers.Conv2D(32, (3,3), activation="relu"),                          
+    tf.keras.layers.MaxPool2D(2,2),
+    #3
+    tf.keras.layers.Conv2D(64, (3,3), activation="relu"),                          
+    tf.keras.layers.MaxPool2D(2,2),
+    # flatten
+    tf.keras.layers.Flatten(),
+    #1 Dense layers
+    tf.keras.layers.Dense(512, activation='relu'),
+    #2 Dense layers
+    tf.keras.layers.Dense(6, activation='softmax')
+                           ])
+
+#%% md
+
+Model Visualisation
+
+#%%
+
+model.summary()
+
+#%%
+
+#compile the model
+model.compile(loss='categorical_crossentropy',
+             optimizer="adam",
+             metrics=["accuracy"])
+
+#%%
+
+#fit the model
+mfit=model.fit(train,
+              epochs=25,
+              validation_data=test)
+
+#%%
+
+%matplotlib inline
+acc = mfit.history['accuracy']
+val_acc = mfit.history['val_accuracy']
+loss = mfit.history['loss']
+val_loss = mfit.history['val_loss']
+
+epochs = range(len(acc))
+
+plt.plot(epochs, acc, 'g', label='Training accuracy')
+plt.plot(epochs, val_acc, 'b', label='Validation accuracy')
+plt.title('Training and validation accuracy')
+plt.legend()
+plt.figure()
+
+plt.plot(epochs, loss, 'g', label='Training Loss')
+plt.plot(epochs, val_loss, 'b', label='Validation Loss')
+plt.title('Training and validation loss')
+plt.legend()
+
+plt.show()
+
+#%%
+
+imgg=image.load_img('seg_pred/11.jpg', target_size=(150,150))
+plt.imshow(imgg)
+img_arryy=image.img_to_array(imgg)
+img_arryy=np.expand_dims(img_arryy, axis=0)
+pred=np.argmax(model.predict(img_arryy))
+pred
+if pred== 0:
+    print('buildings')
+elif pred== 1:
+    print('forest')
+elif pred== 2:
+    print('glacier')
+elif pred== 3:
+    print('mountain')
+elif pred== 4:
+    print('sea')
+elif pred== 5:
+    print('street')
+
+#%%
+
+import os
+# Predict data
+file_path='seg_pred'
+predval=[]
+for i in os.listdir(file_path):
+    img=image.load_img(file_path+'//'+ i, target_size=(150,150))
+    plt.imshow(img)
+    plt.show()
+    img_arry=image.img_to_array(img)
+    img_arry=np.expand_dims(img_arry, axis=0)
+    images=np.vstack([img_arry])
+    predict=np.argmax(model.predict(images))
+    predval.append(predict)
+    if predict== 0:
+        print('Above Image is Classified as: Buildings')
+    elif predict== 1:
+        print('Above Image is Classified as: Forest')
+    elif predict== 2:
+        print('Above Image is Classified as: Glacier')
+    elif predict== 3:
+        print('Above Image is Classified as: Mountain')
+    elif predict== 4:
+        print('Above Image is Classified as: Sea')
+    elif predict== 5:
+        print('Above Image is Classified as: Street')
+
+#%%
+
+# Predict data
+file_path=('seg_test/')
+folder = ('buildings','forest','glacier','mountain','sea', 'street')
+y_pred=[]
+for path in folder:
+    a=file_path+path
+    for i in os.listdir(a):
+        img=image.load_img(a+'//'+ i, target_size=(150,150))
+        img_arry=image.img_to_array(img)
+        img_arry=np.expand_dims(img_arry, axis=0)
+        images=np.vstack([img_arry])
+        predict=np.argmax(model.predict(images))
+        y_pred.append(predict)
+
+#%%
+
+len(y_pred)
+
+#%%
+
+y_pred
+
+#%%
+
+y_test=test.classes #to see which class each image belong
+y_test
+
+#%%
+
+#model.evaluate(y_test,y_pred)
+
+#%%
+
+from sklearn.metrics import accuracy_score
+print("Accuracy : {}".format(accuracy_score(y_test, y_pred)))
+
+#%%
+
+cm=tf.math.confusion_matrix(labels=y_test,predictions=y_pred)
+cm
+
+#%%
+
+import seaborn as sn
+plt.figure(figsize=(10,7))
+sn.heatmap(cm, annot=True, fmt='d',xticklabels=class_names, 
+           yticklabels=class_names)
+plt.xlabel('Predicted')
+plt.ylabel('Actual Values')
+plt.title('Confusion Matrix')
+
+#%% md
+
+Cross-Validation
+
+#%%
+
+from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.model_selection import cross_val_score
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+
+def built_classifier():
+    classifier = Sequential()
+    classifier.add(Dense(output_dim=32, init='uniform', activation='relu', input_dim=30)) # Hidden 1
+    classifier.add(Dense(output_dim=16, init='uniform', activation='relu')) # Hidden 2
+    classifier.add(Dense(output_dim=6, init='uniform', activation='softmax')) # Output
+    classifier.compile(loss='categorical_crossentropy', optimizer='adam',metrics=['accuracy'])
+    return classifier
+
+#%%
+
+classifier=KerasClassifier(build_fn=built_classifier, batch_size=500, epochs=30)
+accuracy=cross_val_score(estimator=classifier, X=y_test, y=y_pred, cv=10,n_jobs=-1)
+
+#%%
+
+accuracy.mean()
+
+#%%
+
+
